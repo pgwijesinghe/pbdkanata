@@ -11,7 +11,7 @@ $ConfigURL = "https://raw.githubusercontent.com/pgwijesinghe/pbdkanata/master/ka
 $KanataZipURL = "https://github.com/jtroo/kanata/releases/download/$KanataVersion/windows-binaries-x64.zip"
 
 # Official SHA-256 for Kanata v1.12.0 windows-binaries-x64.zip
-$ExpectedSHA256 = "db43d06e7f8d0578bc77585bc24bb385cc99862e942e5554dbf3dec02bf081e9"
+$ExpectedSHA256 = "13947ed78cfa3284bfef854e3c542c74ab366236b72fd9f7e039f8638deead9d"
 
 $TempDir = Join-Path $env:TEMP ("pbdkanata-" + [guid]::NewGuid())
 
