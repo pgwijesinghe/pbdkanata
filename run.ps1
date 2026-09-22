@@ -18,21 +18,46 @@ $Kanata = $null
 
 
 # --------------------------------------------------
-# Create temporary workspace
+# Logging
 # --------------------------------------------------
 
-New-Item -ItemType Directory -Path $TempDir | Out-Null
+function Log {
+    param([string]$Message)
 
+    $Time = Get-Date -Format "HH:mm:ss"
+    Write-Host "[$Time] $Message"
+}
+
+
+# --------------------------------------------------
+# Start
+# --------------------------------------------------
+
+Clear-Host
+
+Write-Host ""
+Write-Host "PBDKMAP"
+Write-Host ""
 
 try {
 
-    Clear-Host
-    Write-Host "Starting PBDKMAP..."
+    # --------------------------------------------------
+    # Temporary workspace
+    # --------------------------------------------------
+
+    Log "Creating temporary workspace"
+
+    New-Item `
+        -ItemType Directory `
+        -Path $TempDir `
+        | Out-Null
 
 
     # --------------------------------------------------
-    # Download config
+    # Configuration
     # --------------------------------------------------
+
+    Log "Downloading configuration"
 
     $ConfigPath = Join-Path $TempDir "kanata.kbd"
 
@@ -40,10 +65,14 @@ try {
         -Uri $ConfigURL `
         -OutFile $ConfigPath
 
+    Log "Configuration downloaded"
+
 
     # --------------------------------------------------
-    # Download Kanata
+    # Kanata download
     # --------------------------------------------------
+
+    Log "Downloading Kanata $KanataVersion"
 
     $ZipPath = Join-Path $TempDir "kanata.zip"
 
@@ -51,10 +80,14 @@ try {
         -Uri $KanataZipURL `
         -OutFile $ZipPath
 
+    Log "Kanata downloaded"
+
 
     # --------------------------------------------------
-    # Verify Kanata
+    # Verification
     # --------------------------------------------------
+
+    Log "Verifying SHA-256"
 
     $ActualSHA256 = (
         Get-FileHash `
@@ -63,23 +96,41 @@ try {
     ).Hash.ToLower()
 
     if ($ActualSHA256 -ne $ExpectedSHA256) {
-        throw "Kanata download failed SHA-256 verification."
+
+        throw @"
+SHA-256 verification failed.
+
+Expected:
+$ExpectedSHA256
+
+Received:
+$ActualSHA256
+"@
+
     }
 
+    Log "SHA-256 verified"
+
 
     # --------------------------------------------------
-    # Extract Kanata
+    # Extraction
     # --------------------------------------------------
+
+    Log "Extracting Kanata"
 
     Expand-Archive `
         -Path $ZipPath `
         -DestinationPath $TempDir `
         -Force
 
+    Log "Kanata extracted"
+
 
     # --------------------------------------------------
-    # Find WinIOv2 executable
+    # Find executable
     # --------------------------------------------------
+
+    Log "Locating WinIOv2 executable"
 
     $KanataExe = Get-ChildItem `
         -Path $TempDir `
@@ -91,16 +142,25 @@ try {
         Select-Object -First 1
 
     if (-not $KanataExe) {
-        throw "Kanata executable not found."
+        throw "Kanata WinIOv2 executable not found."
     }
+
+    Log "Executable found"
 
 
     # --------------------------------------------------
-    # Start Kanata silently
+    # Kanata logs
     # --------------------------------------------------
 
     $StdOutLog = Join-Path $TempDir "kanata-stdout.log"
     $StdErrLog = Join-Path $TempDir "kanata-stderr.log"
+
+
+    # --------------------------------------------------
+    # Start Kanata
+    # --------------------------------------------------
+
+    Log "Starting Kanata"
 
     $Kanata = Start-Process `
         -FilePath $KanataExe.FullName `
@@ -109,13 +169,11 @@ try {
         -RedirectStandardError $StdErrLog `
         -PassThru
 
-
-    # Give Kanata time to initialize
     Start-Sleep -Seconds 2
 
 
     # --------------------------------------------------
-    # Detect startup failure
+    # Check startup
     # --------------------------------------------------
 
     if ($Kanata.HasExited) {
@@ -138,14 +196,8 @@ try {
     }
 
 
-    # --------------------------------------------------
-    # Active
-    # --------------------------------------------------
+    Log "PBDKMAP ACTIVE"
 
-    Clear-Host
-
-    Write-Host ""
-    Write-Host "PBDKMAP [ACTIVE]"
     Write-Host ""
     Write-Host "Press ENTER to stop."
     Write-Host ""
@@ -155,10 +207,9 @@ try {
 }
 catch {
 
-    Clear-Host
-
     Write-Host ""
-    Write-Host "PBDKMAP [ERROR]"
+    Log "ERROR"
+
     Write-Host ""
     Write-Host $_.Exception.Message
     Write-Host ""
@@ -175,36 +226,54 @@ finally {
         try {
 
             if (-not $Kanata.HasExited) {
+
+                Log "Stopping Kanata"
+
                 Stop-Process `
                     -Id $Kanata.Id `
                     -Force `
                     -ErrorAction SilentlyContinue
+
+                $Kanata.WaitForExit()
+
+                Log "Kanata stopped"
             }
 
         }
         catch {
-            # Ignore cleanup errors
+
+            Log "Warning: unable to cleanly stop Kanata"
+
         }
+
     }
 
 
-    Start-Sleep -Milliseconds 500
-
-
     # --------------------------------------------------
-    # Delete everything
+    # Cleanup
     # --------------------------------------------------
 
-    Remove-Item `
-        -Path $TempDir `
-        -Recurse `
-        -Force `
-        -ErrorAction SilentlyContinue
+    if (Test-Path $TempDir) {
+
+        Log "Deleting temporary files"
+
+        Remove-Item `
+            -Path $TempDir `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+        if (Test-Path $TempDir) {
+            Log "Warning: temporary directory could not be fully removed"
+        }
+        else {
+            Log "Temporary files deleted"
+        }
+
+    }
 
 
-    Clear-Host
+    Log "PBDKMAP STOPPED"
 
-    Write-Host ""
-    Write-Host "PBDKMAP [STOPPED]"
     Write-Host ""
 }
