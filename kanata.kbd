@@ -1,0 +1,30 @@
+(defcfg
+  process-unmapped-keys yes
+)
+
+(defsrc
+  caps h j k l ; i u o ' [ c x v lsft rsft
+)
+
+(defalias
+  capnav (tap-hold-press 200 200 esc (layer-toggle nav))
+
+  lshift (chord shifts left)
+  rshift (chord shifts right)
+)
+
+(defchords shifts 50
+  (left)       lsft
+  (right)      rsft
+  (left right) caps
+)
+
+(deflayer base
+  @capnav h j k l ; i u o ' [ c x v @lshift @rshift
+)
+
+(deflayer nav
+  _
+  C-left left down rght C-rght up home end bspc C-bspc C-c C-x C-v
+  @lshift @rshift
+)
