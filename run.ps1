@@ -10,7 +10,6 @@ $ConfigURL = "https://raw.githubusercontent.com/pgwijesinghe/pbdkanata/master/ka
 
 $KanataZipURL = "https://github.com/jtroo/kanata/releases/download/$KanataVersion/windows-binaries-x64.zip"
 
-# Official SHA-256 for Kanata v1.12.0 windows-binaries-x64.zip
 $ExpectedSHA256 = "13947ed78cfa3284bfef854e3c542c74ab366236b72fd9f7e039f8638deead9d"
 
 $TempDir = Join-Path $env:TEMP ("pbdkanata-" + [guid]::NewGuid())
@@ -28,18 +27,11 @@ New-Item -ItemType Directory -Path $TempDir | Out-Null
 try {
 
     Clear-Host
-
-    Write-Host ""
-    Write-Host "  ======================================"
-    Write-Host "          PUBUDUW'S KANATA"
-    Write-Host "  ======================================"
-    Write-Host ""
-    Write-Host "  Preparing keyboard..."
-    Write-Host ""
+    Write-Host "Starting PBDKMAP..."
 
 
     # --------------------------------------------------
-    # Download configuration
+    # Download config
     # --------------------------------------------------
 
     $ConfigPath = Join-Path $TempDir "kanata.kbd"
@@ -47,8 +39,6 @@ try {
     Invoke-WebRequest `
         -Uri $ConfigURL `
         -OutFile $ConfigPath
-
-    Write-Host "  [OK] Configuration downloaded"
 
 
     # --------------------------------------------------
@@ -61,40 +51,24 @@ try {
         -Uri $KanataZipURL `
         -OutFile $ZipPath
 
-    Write-Host "  [OK] Kanata $KanataVersion downloaded"
-
 
     # --------------------------------------------------
-    # Verify official Kanata binary
+    # Verify Kanata
     # --------------------------------------------------
 
-    Write-Host "  [..] Verifying Kanata..."
-
-    $ActualSHA256 = (Get-FileHash `
-        -Path $ZipPath `
-        -Algorithm SHA256).Hash.ToLower()
+    $ActualSHA256 = (
+        Get-FileHash `
+            -Path $ZipPath `
+            -Algorithm SHA256
+    ).Hash.ToLower()
 
     if ($ActualSHA256 -ne $ExpectedSHA256) {
-
-        throw @"
-Kanata SHA-256 verification FAILED.
-
-Expected:
-$ExpectedSHA256
-
-Received:
-$ActualSHA256
-
-The downloaded binary will NOT be executed.
-"@
-
+        throw "Kanata download failed SHA-256 verification."
     }
-
-    Write-Host "  [OK] SHA-256 verified"
 
 
     # --------------------------------------------------
-    # Extract
+    # Extract Kanata
     # --------------------------------------------------
 
     Expand-Archive `
@@ -102,14 +76,9 @@ The downloaded binary will NOT be executed.
         -DestinationPath $TempDir `
         -Force
 
-    Write-Host "  [OK] Kanata extracted"
-
 
     # --------------------------------------------------
-    # Locate WinIOv2 GUI executable
-    #
-    # We deliberately use the non-cmd_allowed version.
-    # Your config does not need command execution.
+    # Find WinIOv2 executable
     # --------------------------------------------------
 
     $KanataExe = Get-ChildItem `
@@ -121,95 +90,77 @@ The downloaded binary will NOT be executed.
         } |
         Select-Object -First 1
 
-
     if (-not $KanataExe) {
-
-        Write-Host ""
-        Write-Host "Files found in Kanata package:"
-        Get-ChildItem $TempDir -Recurse -File |
-            ForEach-Object {
-                Write-Host "  $($_.Name)"
-            }
-
-        throw "Could not find kanata_windows_gui_winIOv2_x64.exe"
+        throw "Kanata executable not found."
     }
 
 
     # --------------------------------------------------
-    # Start Kanata
+    # Start Kanata silently
     # --------------------------------------------------
 
-    Write-Host "  [..] Starting Kanata..."
+    $StdOutLog = Join-Path $TempDir "kanata-stdout.log"
+    $StdErrLog = Join-Path $TempDir "kanata-stderr.log"
 
     $Kanata = Start-Process `
         -FilePath $KanataExe.FullName `
         -ArgumentList "--cfg `"$ConfigPath`"" `
+        -RedirectStandardOutput $StdOutLog `
+        -RedirectStandardError $StdErrLog `
         -PassThru
 
 
-    # Give Kanata time to parse config/start hooks
+    # Give Kanata time to initialize
     Start-Sleep -Seconds 2
 
 
-    # Make sure it didn't immediately crash
+    # --------------------------------------------------
+    # Detect startup failure
+    # --------------------------------------------------
+
     if ($Kanata.HasExited) {
-        throw "Kanata exited immediately. Check kanata.kbd."
+
+        $KanataError = ""
+
+        if (Test-Path $StdErrLog) {
+            $KanataError = Get-Content $StdErrLog -Raw
+        }
+
+        if (-not $KanataError -and (Test-Path $StdOutLog)) {
+            $KanataError = Get-Content $StdOutLog -Raw
+        }
+
+        if ($KanataError) {
+            throw "Kanata failed to start:`n`n$KanataError"
+        }
+
+        throw "Kanata failed to start."
     }
 
 
     # --------------------------------------------------
-    # Active screen
+    # Active
     # --------------------------------------------------
 
     Clear-Host
 
     Write-Host ""
-    Write-Host "  ======================================"
-    Write-Host "          PUBUDUW'S KANATA"
-    Write-Host "  ======================================"
+    Write-Host "PBDKMAP [ACTIVE]"
     Write-Host ""
-    Write-Host "              [ ACTIVE ]"
+    Write-Host "Press ENTER to stop."
     Write-Host ""
-    Write-Host "  Tap Caps         -> Esc"
-    Write-Host ""
-    Write-Host "  Caps + H         -> Ctrl + Left"
-    Write-Host "  Caps + J         -> Left"
-    Write-Host "  Caps + K         -> Down"
-    Write-Host "  Caps + L         -> Right"
-    Write-Host "  Caps + ;         -> Ctrl + Right"
-    Write-Host ""
-    Write-Host "  Caps + I         -> Up"
-    Write-Host "  Caps + U         -> Home"
-    Write-Host "  Caps + O         -> End"
-    Write-Host ""
-    Write-Host "  Caps + '         -> Backspace"
-    Write-Host "  Caps + [         -> Ctrl + Backspace"
-    Write-Host ""
-    Write-Host "  Caps + C         -> Copy"
-    Write-Host "  Caps + X         -> Cut"
-    Write-Host "  Caps + V         -> Paste"
-    Write-Host ""
-    Write-Host "  LShift + RShift  -> Caps Lock"
-    Write-Host ""
-    Write-Host "  --------------------------------------"
-    Write-Host ""
-    Write-Host "  Keep this terminal open."
-    Write-Host ""
-    Write-Host "  Press ENTER to stop Kanata."
-    Write-Host ""
-
 
     Read-Host | Out-Null
 
 }
 catch {
 
+    Clear-Host
+
     Write-Host ""
-    Write-Host "  ======================================"
-    Write-Host "               ERROR"
-    Write-Host "  ======================================"
+    Write-Host "PBDKMAP [ERROR]"
     Write-Host ""
-    Write-Host "  $($_.Exception.Message)"
+    Write-Host $_.Exception.Message
     Write-Host ""
 
 }
@@ -219,28 +170,21 @@ finally {
     # Stop Kanata
     # --------------------------------------------------
 
-    Write-Host ""
-    Write-Host "  Stopping Kanata..."
-
-
     if ($Kanata) {
 
         try {
 
             if (-not $Kanata.HasExited) {
-
                 Stop-Process `
                     -Id $Kanata.Id `
                     -Force `
                     -ErrorAction SilentlyContinue
-
             }
 
         }
         catch {
             # Ignore cleanup errors
         }
-
     }
 
 
@@ -248,7 +192,7 @@ finally {
 
 
     # --------------------------------------------------
-    # Remove temporary files
+    # Delete everything
     # --------------------------------------------------
 
     Remove-Item `
@@ -258,7 +202,9 @@ finally {
         -ErrorAction SilentlyContinue
 
 
-    Write-Host "  Temporary files deleted."
-    Write-Host "  Normal keyboard restored."
+    Clear-Host
+
+    Write-Host ""
+    Write-Host "PBDKMAP [STOPPED]"
     Write-Host ""
 }
